@@ -11,7 +11,8 @@ class Node(
     var _subID: Int = -1,
     var _position: Offset = Offset(50f, 50f),
     var _color: String = "red",
-    var _type: NodeType = NodeType.NORMAL
+    var _type: NodeType = NodeType.NORMAL,
+    val nextNodes: MutableList<Int> = mutableListOf<Int>()
 ) {
     companion object {
         fun createStart() = Node(

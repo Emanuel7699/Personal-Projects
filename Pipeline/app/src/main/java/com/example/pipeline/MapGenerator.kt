@@ -1,5 +1,6 @@
 package com.example.pipeline
 
+import androidx.annotation.FractionRes
 import androidx.compose.ui.geometry.Offset
 
 class MapGenerator {
@@ -20,7 +21,7 @@ class MapGenerator {
 
         startGame(nodes, edges)
 
-        repeat(level) {
+        repeat(50) {
             randNextLevel(nodes, edges)
         }
 
@@ -33,10 +34,21 @@ class MapGenerator {
     }
 
     fun randNextLevel(nodes: MutableList<Node>, edges: MutableList<Edge>) {
-        when ((0..2).random()) {
+        when ((0..4).random()) {
             0 -> addPoint(nodes, edges)
-            1 -> addEdge(nodes, edges)
-            2 -> changeFlow(edges)
+            1 -> try{addEdge(nodes, edges, nodes[0], 4)}
+            catch(e: Exception){
+                addPoint(nodes, edges)
+            }
+            2 -> try {addEdge(nodes, edges, layers[1].random(), 2)}
+                catch (e: Exception) {
+                    addPoint(nodes, edges)
+            }
+            3 -> try{addEdge(nodes, edges, layers[2].random(), 0)}
+                catch(e: Exception){
+                    addPoint(nodes, edges)
+                }
+            4 -> changeFlow(edges)
         }
     }
 
@@ -50,19 +62,8 @@ class MapGenerator {
             )
             layers[2].add(newNode)
             nodes.add(newNode)
-            edges.add(Edge(
-                _id = edges.size,
-                _from = (2 until nodes.size - 1).random(),
-                _to = nodes.size,
-                _flow = (0..10).random()
-            ))
-            
-            edges.add(Edge(
-                _id = edges.size,
-                _from = nodes.size,
-                _to = (1 until nodes.size - 1).random(),
-                _flow = (0..10).random()
-            ))
+            addEdge(nodes, edges, newNode,0)
+            addEdge(nodes, edges, newNode,1)
             sortNodes(layers[2], 3 * screenWidth / 5)
         }
         else{
@@ -73,42 +74,51 @@ class MapGenerator {
             )
             layers[1].add(newNode)
             nodes.add(newNode)
-            
-            edges.add(Edge(
-                _id = edges.size,
-                _from = (0 until nodes.size - 1).filter { it != 1 }.random(),
-                _to = nodes.size,
-                _flow = (0..10).random()
-            ))
-            edges.add(Edge(
-                _id = edges.size,
-                _from = nodes.size,
-                _to = (2 until nodes.size - 1).random(),
-                _flow = (0..10).random()
-            ))
+            addEdge(nodes, edges, newNode,2)
+            addEdge(nodes, edges, newNode,3)
             sortNodes(layers[1], 2 * screenWidth / 5)
         }
     }
 
-    fun addEdge(nodes: List<Node>, edges: MutableList<Edge>) {
+    fun addEdge(nodes: List<Node>, edges: MutableList<Edge>, node: Node, case: Int) {
         if (nodes.isEmpty()) return
-        while (true) {
-            val from = (0 until nodes.size).random()
-            val to = (0 until nodes.size).random()
-            if (from == to) continue
-            val alreadyExists = (edges.any { it._from == from && it._to == to }) ||
-                    (layers[1].any { it._id == from} && layers[0].any { it._id == to}) ||
-                    (layers[3].any { it._id == from} && layers[2].any { it._id == to})
-            if (!alreadyExists) {
-                edges.add(Edge(
-                    _id = edges.size,
-                    _from = from,
-                    _to = to,
-                    _flow = (0..10).random()
-                ))
-                break
+        var from = node._id
+        var to = node._id
+        val isAvailable = { id: Int -> id !in node.nextNodes && id != node._id }
+
+        when (case) {
+            0 -> {
+                from = node._id
+                to = (1 until nodes.size - 1).filter { isAvailable(it) }.random()
+                }
+            1 -> {
+                from = (2 until nodes.size - 1).filter { isAvailable(it) }.random()
+                to = node._id
+                }
+            2 -> {
+                from = node._id
+                to = (2 until nodes.size - 1).filter { isAvailable(it) }.random()
+            }
+            3 -> {
+                from = (0 until nodes.size - 1).filter {  isAvailable(it) && it != 1}.random()
+                to = node._id
+            }
+            4 -> {
+                from = node._id
+                to = layers[1].random()._id
             }
         }
+        addEdge(edges,node, from, to)
+    }
+
+    fun addEdge(edges: MutableList<Edge>, node: Node, from: Int, to: Int) {
+        node.nextNodes.add(to)
+        edges.add(Edge(
+            _id = edges.size,
+            _from = from,
+            _to = to,
+            _flow = (0..10).random()
+        ))
     }
 
     fun changeFlow(edges: MutableList<Edge>){
@@ -159,16 +169,9 @@ class MapGenerator {
         layers[2].add(newNode2)
         nodes.add(newNode2)
 
-        for (i in 0..2) {
-            edges.add(
-                Edge(
-                    _id = edges.size,
-                    _from = i,
-                    _to = i+1,
-                    _flow = (0..10).random()
-                )
-            )
-        }
+        addEdge(edges,startNode, 0, 2)
+        addEdge(edges,newNode1, 2, 3)
+        addEdge(edges,newNode2, 3, 1)
         sortNodes(layers[0], 1 * screenWidth / 5)
         sortNodes(layers[1], 2 * screenWidth / 5)
         sortNodes(layers[2], 3 * screenWidth / 5)
