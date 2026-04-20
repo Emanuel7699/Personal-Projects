@@ -1,13 +1,19 @@
 package com.example.pipeline
 
-import androidx.annotation.FractionRes
 import androidx.compose.ui.geometry.Offset
+import kotlin.math.abs
+import kotlin.math.roundToInt
 
 class MapGenerator {
-    private val layers = List(4) { mutableListOf<Node>() }
+    private val layers = mutableListOf(
+        mutableListOf<Node>(),
+        mutableListOf<Node>(),
+        mutableListOf<Node>(),
+    )
     private var screenWidth = 0f
     private var screenHeight = 0f
     private var level = 0
+    private val MAX_NODES_PER_LAYER = 3
 
     fun updateScreenSize(width: Float, height: Float) {
         screenWidth = width
@@ -15,13 +21,18 @@ class MapGenerator {
     }
 
     fun generateInitialMap(): Pair<List<Node>, List<Edge>> {
-        layers.forEach { it.clear() }
+        layers.clear()
+        layers.addAll(listOf(
+            mutableListOf<Node>(),
+            mutableListOf<Node>(),
+            mutableListOf<Node>()
+        ))
         val nodes = mutableListOf<Node>()
         val edges = mutableListOf<Edge>()
 
         startGame(nodes, edges)
 
-        repeat(50) {
+        repeat(level) {
             randNextLevel(nodes, edges)
         }
 
@@ -34,107 +45,101 @@ class MapGenerator {
     }
 
     fun randNextLevel(nodes: MutableList<Node>, edges: MutableList<Edge>) {
-        when ((0..4).random()) {
+        when ((0..2).random()) {
             0 -> addPoint(nodes, edges)
-            1 -> try{addEdge(nodes, edges, nodes[0], 4)}
-            catch(e: Exception){
-                addPoint(nodes, edges)
-            }
-            2 -> try {addEdge(nodes, edges, layers[1].random(), 2)}
-                catch (e: Exception) {
-                    addPoint(nodes, edges)
-            }
-            3 -> try{addEdge(nodes, edges, layers[2].random(), 0)}
-                catch(e: Exception){
-                    addPoint(nodes, edges)
+            1 -> {if (layers.size < 4) {randNextLevel(nodes, edges)
+                    return
                 }
-            4 -> changeFlow(edges)
+                val randomNode = layers[(1 until layers.size - 2).random()]
+                    .filter { it.canAddEdge }
+                    .randomOrNull()
+
+                if (randomNode != null) {
+                    addEdge(edges, randomNode)
+                }
+            }
+            2 -> changeCapacity(edges)
         }
     }
 
     fun addPoint(nodes: MutableList<Node>, edges: MutableList<Edge>) {
-        val newNodeId = nodes.size
-        if (layers[1].size >= layers[2].size) {
-            val newNode = Node(
-                _id = newNodeId,
-                _subID = layers[2].size,
-                _position = Offset(3 * screenWidth / 5, screenHeight / 2)
-            )
-            layers[2].add(newNode)
-            nodes.add(newNode)
-            addEdge(nodes, edges, newNode,0)
-            addEdge(nodes, edges, newNode,1)
-            sortNodes(layers[2], 3 * screenWidth / 5)
+
+        val newNode = Node(_id = nodes.size)
+        nodes.add(newNode)
+        val endNode = layers.last().first()
+
+        if (layers[layers.size - 2].size >= MAX_NODES_PER_LAYER){
+            layers[layers.size - 2].forEach {currentNode ->
+                currentNode._nextNodes.remove(endNode._id)
+                edges.removeAll { it._from == currentNode._id && it._to == endNode._id }
+            }
+            layers.add(layers.size - 1, mutableListOf<Node>())
+            layers[layers.size - 2].add(newNode)
+            layers[layers.size - 3].forEach { currentNode ->
+                addEdge(edges, currentNode, currentNode._id, newNode._id)
+            }
+            addEdge(edges, newNode, newNode._id, endNode._id)
         }
-        else{
-            val newNode = Node(
-                _id = nodes.size,
-                _subID = layers[1].size,
-                _position = Offset(2 * screenWidth / 5, screenHeight / 2)
-            )
-            layers[1].add(newNode)
-            nodes.add(newNode)
-            addEdge(nodes, edges, newNode,2)
-            addEdge(nodes, edges, newNode,3)
-            sortNodes(layers[1], 2 * screenWidth / 5)
+        else {
+            layers[layers.size - 2].add(newNode)
+
+            val fromNode = layers[layers.size - 3]
+                .filter { it.canAddEdge }
+                .randomOrNull()
+
+            if (fromNode != null) {
+                addEdge(edges, fromNode, fromNode._id, newNode._id)
+            }
+
+            addEdge(edges, newNode, newNode._id, endNode._id)
         }
+        sortAllLayers()
     }
 
-    fun addEdge(nodes: List<Node>, edges: MutableList<Edge>, node: Node, case: Int) {
-        if (nodes.isEmpty()) return
-        var from = node._id
-        var to = node._id
-        val isAvailable = { id: Int -> id !in node.nextNodes && id != node._id }
+    fun addEdge(edges: MutableList<Edge>, node: Node) {
+        if (layers.size < 4) return
+        val index = layers.indexOfFirst { layer -> layer.any { it._id == node._id } }
+        if (index == -1 || index >= layers.size - 1) return
 
-        when (case) {
-            0 -> {
-                from = node._id
-                to = (1 until nodes.size - 1).filter { isAvailable(it) }.random()
-                }
-            1 -> {
-                from = (2 until nodes.size - 1).filter { isAvailable(it) }.random()
-                to = node._id
-                }
-            2 -> {
-                from = node._id
-                to = (2 until nodes.size - 1).filter { isAvailable(it) }.random()
-            }
-            3 -> {
-                from = (0 until nodes.size - 1).filter {  isAvailable(it) && it != 1}.random()
-                to = node._id
-            }
-            4 -> {
-                from = node._id
-                to = layers[1].random()._id
-            }
+        val currentNode = node
+
+        val nextLayerNodes = layers[index + 1]
+
+        val sameLayerNearbyNodes = layers[index].filter { targetNode ->
+            abs(targetNode._id - currentNode._id) == 1
         }
-        addEdge(edges,node, from, to)
+
+        val isAvailable = { targetNode: Node ->
+            targetNode._id !in currentNode._nextNodes && targetNode._id != currentNode._id
+        }
+
+        val to = (nextLayerNodes + sameLayerNearbyNodes)
+            .filter(isAvailable)
+            .randomOrNull()?._id ?: return
+        addEdge(edges,currentNode, currentNode._id, to)
     }
 
     fun addEdge(edges: MutableList<Edge>, node: Node, from: Int, to: Int) {
-        node.nextNodes.add(to)
+        node._nextNodes.add(to)
         edges.add(Edge(
             _id = edges.size,
             _from = from,
             _to = to,
-            _flow = (0..10).random()
+            _capacity = (1..10).random()
         ))
     }
 
-    fun changeFlow(edges: MutableList<Edge>){
-        if (edges.isEmpty()) return
-        val pos = (0 until edges.size).random()
-        while (true) {
-            val newFlow = (1..10).random()
-            if (newFlow != edges[pos]._flow) {
-                edges[pos] = edges[pos].copy(_flow = newFlow)
-                break
-            }
-        }
+    fun changeCapacity(edges: MutableList<Edge>) {
+        val edge = edges.randomOrNull() ?: return
+
+        val newCapacity = (3..10).filter { it != edge._capacity }.randomOrNull() ?: return
+
+        val index = edges.indexOf(edge)
+        edges[index] = edge.copy(_capacity = newCapacity)
     }
 
     fun sortNodes(nodesList: MutableList<Node>, xPos: Float) {
-        if (nodesList.isEmpty()) return
+        if (nodesList.isEmpty() || screenHeight <= 0f) return
 
         val space = screenHeight / (nodesList.size + 1)
 
@@ -149,32 +154,26 @@ class MapGenerator {
         val endNode = Node.createEnd()
 
         nodes.add(startNode)
-        layers[0].add(startNode)
+        layers.first().add(startNode)
         nodes.add(endNode)
-        layers[3].add(endNode)
+        layers.last().add(endNode)
 
-        val newNode1 = Node(
-            _id = nodes.size,
-            _subID = layers[1].size,
-            _position = Offset(2 * screenWidth / 5, screenHeight / 2)
-        )
+        val newNode1 = Node(_id = nodes.size)
         layers[1].add(newNode1)
         nodes.add(newNode1)
 
-        val newNode2 = Node(
-            _id = nodes.size,
-            _subID = layers[2].size,
-            _position = Offset(3 * screenWidth / 5, screenHeight / 2)
-        )
-        layers[2].add(newNode2)
-        nodes.add(newNode2)
+        addEdge(edges, startNode, startNode._id, newNode1._id)
+        addEdge(edges, newNode1, newNode1._id, endNode._id)
+        sortAllLayers()
+    }
 
-        addEdge(edges,startNode, 0, 2)
-        addEdge(edges,newNode1, 2, 3)
-        addEdge(edges,newNode2, 3, 1)
-        sortNodes(layers[0], 1 * screenWidth / 5)
-        sortNodes(layers[1], 2 * screenWidth / 5)
-        sortNodes(layers[2], 3 * screenWidth / 5)
-        sortNodes(layers[3], 4 * screenWidth / 5)
+    fun sortAllLayers() {
+        if (layers.isEmpty() || screenWidth <= 0f) return
+
+        layers.forEachIndexed { index, layer ->
+            val xPos = screenWidth * (index + 1) / (layers.size + 1)
+
+            sortNodes(layer, xPos)
+        }
     }
 }
