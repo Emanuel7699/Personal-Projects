@@ -8,10 +8,19 @@ class GameManager {
     val edges = mutableStateListOf<Edge>()
     val generator = MapGenerator()
 
+    val historyNodes = mutableListOf<Node>()
+    val historyEdges = mutableListOf<Edge>()
+    var currentLayers: List<List<Node>> = emptyList()
+
 
     fun initGame(){
+        historyNodes.clear()
+        historyEdges.clear()
+        historyNodes.addAll(nodes)
+        historyEdges.addAll(edges)
+        currentLayers = generator.layers.map { it.toList() }
         clean()
-        val (newNodes, newEdges) = generator.generateInitialMap()
+        val (newNodes, newEdges) = generator.generateInitialMap(historyNodes, historyEdges, currentLayers)
         nodes.addAll(newNodes)
         edges.addAll(newEdges)
     }
@@ -19,6 +28,5 @@ class GameManager {
     fun clean(){
         nodes.clear()
         edges.clear()
-        generator.resetLevel()
     }
 }

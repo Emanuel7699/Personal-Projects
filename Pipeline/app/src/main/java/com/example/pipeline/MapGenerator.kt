@@ -5,14 +5,13 @@ import kotlin.math.abs
 import kotlin.math.roundToInt
 
 class MapGenerator {
-    private val layers = mutableListOf(
+    val layers = mutableListOf(
         mutableListOf<Node>(),
         mutableListOf<Node>(),
         mutableListOf<Node>(),
     )
     private var screenWidth = 0f
     private var screenHeight = 0f
-    private var level = 0
     private val MAX_NODES_PER_LAYER = 3
 
     fun updateScreenSize(width: Float, height: Float) {
@@ -20,28 +19,28 @@ class MapGenerator {
         screenHeight = height
     }
 
-    fun generateInitialMap(): Pair<List<Node>, List<Edge>> {
-        layers.clear()
-        layers.addAll(listOf(
-            mutableListOf<Node>(),
-            mutableListOf<Node>(),
-            mutableListOf<Node>()
-        ))
-        val nodes = mutableListOf<Node>()
-        val edges = mutableListOf<Edge>()
+    fun generateInitialMap(historyNodes: List<Node>, historyEdges: List<Edge>, historyLayers: List<List<Node>>): Pair<List<Node>, List<Edge>> {
 
-        startGame(nodes, edges)
-
-        repeat(level) {
-            randNextLevel(nodes, edges)
+        val nodes = historyNodes.toMutableList()
+        val edges = historyEdges.toMutableList()
+        if (nodes.isEmpty()) {
+            layers.clear()
+            layers.addAll(
+                listOf(
+                    mutableListOf<Node>(),
+                    mutableListOf<Node>(),
+                    mutableListOf<Node>()
+                )
+            )
+            startGame(nodes, edges)
+        } else {
+            layers.clear()
+            historyLayers.forEach { layer ->
+                layers.add(layer.toMutableList())
+            }
         }
-
-        level++
+        randNextLevel(nodes, edges)
         return Pair(nodes, edges)
-    }
-
-    fun resetLevel() {
-        level = 0
     }
 
     fun randNextLevel(nodes: MutableList<Node>, edges: MutableList<Edge>) {
