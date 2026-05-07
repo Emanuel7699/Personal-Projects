@@ -55,7 +55,7 @@ class FlowSolver {
     }
 
     fun calculatePercent(currentFlow: Int, maxCapacity: Int): Int {
-        if (maxCapacity == 0) return 0
+        if (maxCapacity == 0) return 100
         return (currentFlow * 100) / maxCapacity
     }
 }

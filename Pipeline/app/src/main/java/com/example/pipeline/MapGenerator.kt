@@ -124,14 +124,14 @@ class MapGenerator {
             _id = edges.size,
             _from = from,
             _to = to,
-            _capacity = (1..10).random()
+            _capacity = (1..5).random()
         ))
     }
 
     fun changeCapacity(edges: MutableList<Edge>) {
         val edge = edges.randomOrNull() ?: return
 
-        val newCapacity = (3..10).filter { it != edge._capacity }.randomOrNull() ?: return
+        val newCapacity = (1..5).filter { it != edge._capacity }.randomOrNull() ?: return
 
         val index = edges.indexOf(edge)
         edges[index] = edge.copy(_capacity = newCapacity)
