@@ -44,7 +44,7 @@ class MapGenerator {
     }
 
     fun randNextLevel(nodes: MutableList<Node>, edges: MutableList<Edge>) {
-        when ((0..2).random()) {
+        when ((0..1).random()) {
             0 -> addPoint(nodes, edges)
             1 -> {if (layers.size < 4) {randNextLevel(nodes, edges)
                     return

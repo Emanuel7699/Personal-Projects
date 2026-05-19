@@ -38,6 +38,11 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.launch
+import android.widget.Toast
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.foundation.layout.Box
 
 class MainActivity : ComponentActivity() {
     private val gameManager = GameManager()
@@ -68,6 +73,7 @@ fun MainScreen(manager: GameManager) {
     var lastPosition by remember { mutableStateOf<Offset?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
     Column(modifier = Modifier.fillMaxSize()) {
         SnackbarHost(hostState = snackbarHostState)
 
@@ -80,7 +86,7 @@ fun MainScreen(manager: GameManager) {
                         onDragStart = { offset ->
                             val startNode = manager.nodes.find { node ->
                                 (node._type == NodeType.START || node._type == NodeType.END) &&
-                                        (offset - node._position).getDistance() < 60f
+                                        (offset - node._position).getDistance() < 150f
                             }
                             if (startNode != null) {
                                 currentPath = listOf(startNode._id)
@@ -94,7 +100,7 @@ fun MainScreen(manager: GameManager) {
                             if (currentPath.isNotEmpty()) {
                                 val offset = change.position
                                 val touchedNode = manager.nodes.find { node ->
-                                    (offset - node._position).getDistance() < 60f
+                                    (offset - node._position).getDistance() < 150f
                                 }
                                 if (touchedNode != null && touchedNode._id !in currentPath) {
                                     val lastNodeId = currentPath.last()
@@ -116,34 +122,45 @@ fun MainScreen(manager: GameManager) {
                             val isForward = firstNode?._type == NodeType.START && lastNode?._type == NodeType.END
                             val isBackward = firstNode?._type == NodeType.END && lastNode?._type == NodeType.START
                             if (isForward || isBackward) {
-                                val pathEdges = (0 until currentPath.size - 1).mapNotNull { i ->
-                                    manager.edges.find {
-                                        (it._from == currentPath[i] && it._to == currentPath[i + 1]) ||
-                                                (it._from == currentPath[i + 1] && it._to == currentPath[i])
+                                val pathSteps = (0 until currentPath.size - 1).mapNotNull { i ->
+                                    val u = currentPath[i]
+                                    val v = currentPath[i + 1]
+                                    val edge = manager.edges.find {
+                                        (it._from == u && it._to == v) || (it._from == v && it._to == u)
                                     }
+                                    if (edge != null) {
+                                        Pair(edge, edge._from == u) // שומרים את הצינור, ו-true אם הלכנו בכיוון החץ
+                                    } else null
                                 }
                                 if (isForward) {
-                                    val minResidual = pathEdges.minOfOrNull { it._capacity - it._flow } ?: 0
+                                    val minResidual = pathSteps.minOfOrNull { (edge, isWithArrow) ->
+                                        if (isWithArrow) edge._capacity - edge._flow
+                                        else edge._flow
+                                    } ?: 0
                                     if (minResidual > 0) {
-                                        pathEdges.forEach { edge ->
+                                        pathSteps.forEach { (edge, isWithArrow) ->
                                             val index = manager.edges.indexOf(edge)
-                                            manager.edges[index] = edge.copy(_flow = edge._flow + 1)
+                                            val newFlow = if (isWithArrow) edge._flow + 1 else edge._flow - 1
+                                            manager.edges[index] = edge.copy(_flow = newFlow)
                                         }
                                     } else {
                                         scope.launch {
-                                            snackbarHostState.showSnackbar("Path is at maximum capacity!")
+                                            Toast.makeText(context, "Path is at maximum capacity!", Toast.LENGTH_SHORT).show()
                                         }
                                     }
                                 } else if (isBackward) {
-                                    val minFlow = pathEdges.minOfOrNull { it._flow } ?: 0
+                                    val minFlow = pathSteps.minOfOrNull { (edge, isWithArrow) ->
+                                        if (!isWithArrow) edge._flow else edge._capacity - edge._flow
+                                    } ?: 0
                                     if (minFlow > 0) {
-                                        pathEdges.forEach { edge ->
+                                        pathSteps.forEach { (edge, isWithArrow) ->
                                             val index = manager.edges.indexOf(edge)
-                                            manager.edges[index] = edge.copy(_flow = edge._flow - 1)
+                                            val newFlow = if (!isWithArrow) edge._flow - 1 else edge._flow + 1
+                                            manager.edges[index] = edge.copy(_flow = newFlow)
                                         }
                                     } else {
                                         scope.launch {
-                                            snackbarHostState.showSnackbar("No flow to reduce on this path!")
+                                            Toast.makeText(context, "No flow to reduce on this path!", Toast.LENGTH_SHORT).show()
                                         }
                                     }
                                 }
@@ -179,7 +196,9 @@ fun MainScreen(manager: GameManager) {
                         (edge._from == a && edge._to == b) || (edge._from == b && edge._to == a)
                     }
                     drawLine(
-                        color = if (isInCurrentPath) Color.Cyan else Color.Gray,
+                        color = if (isInCurrentPath) {Color.Cyan}
+                                else if (edge._capacity <= edge._flow) {Color.Red}
+                                else {Color.Gray},
                         start = startNode._position,
                         end = targetPos,
                         strokeWidth = 8f
@@ -203,7 +222,11 @@ fun MainScreen(manager: GameManager) {
                         lineTo(arrowPt2.x, arrowPt2.y)
                         close()
                     }
-                    drawPath(path = arrowPath, color = Color.Gray)
+                    drawPath(path = arrowPath,
+                        color = if (isInCurrentPath) {Color.Cyan}
+                        else if (edge._capacity <= edge._flow) {Color.Red}
+                        else {Color.Gray},
+                    )
 
 
                     if (angleDeg > 90f || angleDeg < -90f) {
@@ -216,17 +239,19 @@ fun MainScreen(manager: GameManager) {
                     val textString = "${edge._flow}/${edge._capacity}"
                     val textLayout = textMeasurer.measure(
                         text = textString,
-                        style = TextStyle(color = Color.Black, fontSize = 18.sp)
+                        style = TextStyle(color = Color.Black, fontSize = 12.sp)
                     )
 
                     rotate(degrees = angleDeg, pivot = Offset(midX, midY)) {
-                        drawText(
-                            textLayoutResult = textLayout,
-                            topLeft = Offset(
-                                x = midX - (textLayout.size.width / 2f),
-                                y = midY - textLayout.size.height - 5f
+//                        if (startNode._type == NodeType.START || endNode._type == NodeType.END) {
+                            drawText(
+                                textLayoutResult = textLayout,
+                                topLeft = Offset(
+                                    x = midX - (textLayout.size.width / 2f),
+                                    y = midY - textLayout.size.height - 5f
+                                )
                             )
-                        )
+//                        }
                     }
                 }
 
@@ -246,27 +271,37 @@ fun MainScreen(manager: GameManager) {
 
         }
 
-        Column(
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 8.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+                .padding(horizontal = 16.dp, vertical = 8.dp)
         ) {
-            Text(text = "Max Flow: $maxFlow")
-            Text(text = "Flow Percent: $flowPercent%")
-        }
+            Column(
+                modifier = Modifier.align(Alignment.CenterEnd),
+                horizontalAlignment = Alignment.End
+            ) {
+                Text(
+                    text = "Max Flow: $maxFlow",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = "Flow Percent: $flowPercent%",
+                    fontSize = 14.sp
+                )
+            }
 
-        Button(
-            onClick = {
-                buttonText = "Next Level"
-                manager.initGame()
-            },
-            enabled = buttonText == "Start Play" || flowPercent == 100,
-            modifier = Modifier
-                .padding(32.dp, 16.dp)
-                .align(Alignment.CenterHorizontally)
-        ) {
-            Text(text = buttonText)
+            Button(
+                onClick = {
+                    buttonText = "Next Level"
+                    manager.initGame()
+                },
+                enabled = buttonText == "Start Play" || flowPercent == 100,
+                modifier = Modifier.align(Alignment.Center),
+                colors = ButtonDefaults.buttonColors(containerColor = Color.Blue)
+            ) {
+                Text(text = buttonText)
+            }
         }
     }
 }
