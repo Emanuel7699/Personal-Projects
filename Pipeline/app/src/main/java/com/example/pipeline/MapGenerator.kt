@@ -13,6 +13,7 @@ class MapGenerator {
     private var screenWidth = 0f
     private var screenHeight = 0f
     private val MAX_NODES_PER_LAYER = 3
+    private val MAX_CAPACITY = 3
 
     fun updateScreenSize(width: Float, height: Float) {
         screenWidth = width
@@ -44,9 +45,9 @@ class MapGenerator {
     }
 
     fun randNextLevel(nodes: MutableList<Node>, edges: MutableList<Edge>) {
-        when ((0..1).random()) {
-            0 -> addPoint(nodes, edges)
-            1 -> {if (layers.size < 4) {randNextLevel(nodes, edges)
+        when ((0..9).random()) {
+            in 0..3 -> addPoint(nodes, edges)
+            in 4..7 -> {if (layers.size < 4) {randNextLevel(nodes, edges)
                     return
                 }
                 val randomNode = layers[(1 until layers.size - 2).random()]
@@ -57,7 +58,7 @@ class MapGenerator {
                     addEdge(edges, randomNode)
                 }
             }
-            2 -> changeCapacity(edges)
+            in 8..9 -> changeCapacity(edges)
         }
     }
 
@@ -119,19 +120,20 @@ class MapGenerator {
     }
 
     fun addEdge(edges: MutableList<Edge>, node: Node, from: Int, to: Int) {
+        val newCapacity = if (to == 1) 100 else (1..MAX_CAPACITY).random()
         node._nextNodes.add(to)
         edges.add(Edge(
             _id = edges.size,
             _from = from,
             _to = to,
-            _capacity = (1..5).random()
+            _capacity = newCapacity
         ))
     }
 
     fun changeCapacity(edges: MutableList<Edge>) {
         val edge = edges.randomOrNull() ?: return
 
-        val newCapacity = (1..5).filter { it != edge._capacity }.randomOrNull() ?: return
+        val newCapacity = (1..MAX_CAPACITY).filter { it != edge._capacity && edge._capacity != 100 }.randomOrNull() ?: return
 
         val index = edges.indexOf(edge)
         edges[index] = edge.copy(_capacity = newCapacity)

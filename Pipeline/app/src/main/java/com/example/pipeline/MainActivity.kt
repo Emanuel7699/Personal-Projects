@@ -86,7 +86,7 @@ fun MainScreen(manager: GameManager) {
                         onDragStart = { offset ->
                             val startNode = manager.nodes.find { node ->
                                 (node._type == NodeType.START || node._type == NodeType.END) &&
-                                        (offset - node._position).getDistance() < 150f
+                                        (offset - node._position).getDistance() < 120f
                             }
                             if (startNode != null) {
                                 currentPath = listOf(startNode._id)
@@ -100,7 +100,7 @@ fun MainScreen(manager: GameManager) {
                             if (currentPath.isNotEmpty()) {
                                 val offset = change.position
                                 val touchedNode = manager.nodes.find { node ->
-                                    (offset - node._position).getDistance() < 150f
+                                    (offset - node._position).getDistance() < 120f
                                 }
                                 if (touchedNode != null && touchedNode._id !in currentPath) {
                                     val lastNodeId = currentPath.last()
@@ -129,7 +129,7 @@ fun MainScreen(manager: GameManager) {
                                         (it._from == u && it._to == v) || (it._from == v && it._to == u)
                                     }
                                     if (edge != null) {
-                                        Pair(edge, edge._from == u) // שומרים את הצינור, ו-true אם הלכנו בכיוון החץ
+                                        Pair(edge, edge._from == u)
                                     } else null
                                 }
                                 if (isForward) {
@@ -243,7 +243,7 @@ fun MainScreen(manager: GameManager) {
                     )
 
                     rotate(degrees = angleDeg, pivot = Offset(midX, midY)) {
-//                        if (startNode._type == NodeType.START || endNode._type == NodeType.END) {
+                        if (endNode._type != NodeType.END) {
                             drawText(
                                 textLayoutResult = textLayout,
                                 topLeft = Offset(
@@ -251,7 +251,7 @@ fun MainScreen(manager: GameManager) {
                                     y = midY - textLayout.size.height - 5f
                                 )
                             )
-//                        }
+                        }
                     }
                 }
 
@@ -296,7 +296,7 @@ fun MainScreen(manager: GameManager) {
                     buttonText = "Next Level"
                     manager.initGame()
                 },
-                enabled = buttonText == "Start Play" || flowPercent == 100,
+                enabled = buttonText == "Start Play" || flowPercent <= 100,
                 modifier = Modifier.align(Alignment.Center),
                 colors = ButtonDefaults.buttonColors(containerColor = Color.Blue)
             ) {
