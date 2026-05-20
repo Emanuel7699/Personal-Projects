@@ -296,7 +296,7 @@ fun MainScreen(manager: GameManager) {
                     buttonText = "Next Level"
                     manager.initGame()
                 },
-                enabled = buttonText == "Start Play" || flowPercent <= 100,
+                enabled = buttonText == "Start Play" || flowPercent == 100,
                 modifier = Modifier.align(Alignment.Center),
                 colors = ButtonDefaults.buttonColors(containerColor = Color.Blue)
             ) {
